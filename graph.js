@@ -40,11 +40,18 @@ fetch('name_list.json')
     // Create the hierarchy and compute the tree layout
     const hierarchy = d3.hierarchy(root);
     
-    // Collapse all nodes initially
+    // Collapse all nodes except Jayalal and his immediate children
     hierarchy.descendants().forEach(d => {
+      // If it's not in the path to Jayalal and not Jayalal himself, collapse it
+      const isJayalal = d.data.name === "Jayalal";
+      const isPathToJayalal = d.ancestors().some(node => node.data.name === "Jayalal");
+      const isJayalalChild = d.parent && d.parent.data.name === "Jayalal";
+
       if (d.children) {
-        d._children = d.children;
-        d.children = null;
+        if (!isJayalal && !isPathToJayalal && !isJayalalChild) {
+          d._children = d.children;
+          d.children = null;
+        }
       }
     });
 
