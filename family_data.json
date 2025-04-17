@@ -6,49 +6,46 @@
       {
         "id": "family_tree",
         "name": "Family Tree",
-        "spouse": null,
         "children": ["child1"]
       },
       {
         "id": "child1",
         "name": "Child 1",
-        "spouse": null,
         "children": ["child1_1", "child1_2"]
       },
       {
         "id": "child1_1",
         "name": "Child 1.1",
-        "spouse": null,
         "children": ["child1_1_1"]
       },
       {
         "id": "child1_2",
         "name": "Child 1.2",
-        "spouse": null,
         "children": ["child1_2_1", "child1_2_2", "child1_2_3"]
       },
       {
         "id": "child1_1_1",
         "name": "Child 1.1.1",
-        "spouse": null,
         "children": []
       },
       {
         "id": "child1_2_1",
         "name": "Child 1.2.1",
-        "spouse": null,
+        "children": ["child_new1+3"]
+      },
+      {
+        "id": "child_new1+3",
+        "name": "Jone Doe + Jane Doe",
         "children": []
       },
       {
         "id": "child1_2_2",
         "name": "Child 1.2.2",
-        "spouse": null,
         "children": []
       },
       {
         "id": "child1_2_3",
         "name": "Child 1.2.3",
-        "spouse": null,
         "children": []
       }
     ]

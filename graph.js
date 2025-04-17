@@ -1,41 +1,68 @@
 // Load the family data
 console.log('Starting to load family data...');
-fetch('family_data.json')
+fetch('name_list.json')
   .then(response => {
     console.log('Response received:', response);
     return response.json();
   })
   .then(data => {
     console.log('Data loaded:', data);
-    const familyData = data.family;
+    const root = data[0]; // name_list.json has an array with a single root element
     
-    // Convert the flat structure to a hierarchical structure
-    const root = buildHierarchy(familyData);
-    console.log('Hierarchy built:', root);
-    
-    // Set up the SVG dimensions
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    // Set up the SVG dimensions with more space
+    const width = Math.max(window.innerWidth, 1500); // Increased minimum width
+    const height = Math.max(window.innerHeight, 1000); // Increased minimum height
     console.log('SVG dimensions:', width, height);
     
-    const svg = d3.select("#graph")
+    // Create SVG container
+    const svg = d3.select("#tree")
+      .append("svg")
       .attr("width", width)
       .attr("height", height);
     
-    // Create the tree layout with top-to-bottom orientation and top margin
+    // Create a group for the tree that will be transformed
+    const g = svg.append("g")
+      .attr("transform", `translate(${width/4},${height/2})`);
+    
+    // Add zoom behavior to the SVG, transforming the group
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 3])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+    
+    svg.call(zoom);
+    
+    // Create the tree layout with increased spacing
     const treeLayout = d3.tree()
-      .size([width - 200, height - 300]); // Added more top margin
+      .nodeSize([80, 200]); // Adjust node spacing
     
     // Create the hierarchy and compute the tree layout
     const hierarchy = d3.hierarchy(root);
     
-    // Collapse all nodes except root initially
+    // Collapse all nodes initially
     hierarchy.descendants().forEach(d => {
-      if (d.depth > 0) {
+      if (d.children) {
         d._children = d.children;
         d.children = null;
       }
     });
+    
+    // Function to center node
+    function centerNode(source) {
+      const scale = d3.zoomTransform(svg.node()).k;
+      const x = -source.y * scale;
+      const y = -source.x * scale;
+      
+      svg.transition()
+        .duration(750)
+        .call(zoom.transform, 
+          d3.zoomIdentity
+            .translate(width/3, height/2)
+            .translate(x, y)
+            .scale(scale)
+        );
+    }
     
     // Function to update the tree
     function update(source) {
@@ -45,143 +72,161 @@ fetch('family_data.json')
       const nodes = treeData.descendants();
       const links = treeData.links();
       
-      // Update the links with faster transitions
-      const link = svg.selectAll(".link")
-        .data(links, d => d.target.id);
+      // Update the links
+      const link = g.selectAll(".link")
+        .data(links, d => d.target.data.id);
       
       // Enter any new links
-      const linkEnter = link.enter()
-        .append("path")
+      const linkEnter = link.enter().append("path")
         .attr("class", "link")
-        .attr("d", d3.linkVertical()
-          .x(d => d.x)
-          .y(d => d.y + 50));
+        .attr("d", d3.linkHorizontal()
+          .x(d => d.y)
+          .y(d => d.x));
       
-      // Update existing links with shorter duration
-      link.transition()
-        .duration(200) // Reduced from 500 to 200
-        .attr("d", d3.linkVertical()
-          .x(d => d.x)
-          .y(d => d.y + 50));
+      // Update existing links
+      link.merge(linkEnter)
+        .transition()
+        .duration(750)
+        .attr("d", d3.linkHorizontal()
+          .x(d => d.y)
+          .y(d => d.x));
       
-      // Exit any old links
+      // Remove any exiting links
       link.exit().remove();
       
-      // Update the nodes with faster transitions
-      const node = svg.selectAll(".node")
-        .data(nodes, d => d.id || (d.id = ++i));
+      // Update the nodes
+      const node = g.selectAll(".node")
+        .data(nodes, d => d.data.id);
       
       // Enter any new nodes
-      const nodeEnter = node.enter()
-        .append("g")
+      const nodeEnter = node.enter().append("g")
         .attr("class", "node")
-        .attr("transform", d => `translate(${d.x},${d.y + 50})`);
+        .attr("transform", d => `translate(${source.y0},${source.x0})`);
       
-      // Add circles for nodes
+      // Add circles for the nodes
       nodeEnter.append("circle")
-        .attr("r", 15)
-        .attr("class", d => d.data.spouse ? "married" : "single")
-        .on("click", click);
+        .attr("r", 10)
+        .attr("class", d => d.data.spouse ? "married" : "single");
       
-      // Add expand/collapse indicators inside the circle
+      // Add + symbol for nodes with hidden children
       nodeEnter.append("text")
-        .attr("class", "expand-collapse")
-        .attr("dy", ".35em")
+        .attr("class", "expand-symbol")
+        .attr("dy", ".3em")
         .style("text-anchor", "middle")
-        .style("cursor", "pointer")
         .style("font-size", "16px")
-        .style("fill", "white")
-        .text(d => {
-          if (d.children) return "-";
-          if (d._children) return "+";
-          return "";
-        });
+        .style("fill", "#666")
+        .text(d => d._children ? "+" : "");
       
-      // Add text labels
+      // Add name label below the node
       nodeEnter.append("text")
-        .attr("class", "node-label")
-        .attr("dy", ".35em")
-        .attr("x", d => (d.children || d._children) ? -18 : 18)
-        .style("text-anchor", d => (d.children || d._children) ? "end" : "start")
+        .attr("class", "name-label")
+        .attr("dy", "2em")
+        .style("text-anchor", "middle")
         .text(d => d.data.name);
       
-      // Update existing nodes with shorter duration
-      node.transition()
-        .duration(200) // Reduced from 500 to 200
-        .attr("transform", d => `translate(${d.x},${d.y + 50})`);
+      // Transition nodes to their new positions
+      const nodeUpdate = node.merge(nodeEnter)
+        .transition()
+        .duration(750)
+        .attr("transform", d => `translate(${d.y},${d.x})`);
       
-      // Update expand/collapse indicators immediately
-      node.select(".expand-collapse")
-        .text(d => {
-          if (d.children) return "-";
-          if (d._children) return "+";
-          return "";
-        });
+      // Update node attributes
+      nodeUpdate.select("circle")
+        .attr("r", 10)
+        .attr("class", d => d.data.spouse ? "married" : "single");
       
-      // Exit any old nodes
-      node.exit().remove();
-    }
-    
-    // Toggle children on click with immediate visual feedback
-    function click(event, d) {
-      if (d.children) {
-        d._children = d.children;
-        d.children = null;
-      } else if (d._children) {
-        d.children = d._children;
-        d._children = null;
-      } else {
-        return;
-      }
+      // Update + symbol
+      nodeUpdate.select(".expand-symbol")
+        .text(d => d._children ? "+" : "");
+
+      nodeUpdate.select(".name-label")
+        .text(d => d.data.name);
       
-      // Update the tree immediately
-      update(d);
+      // Remove any exiting nodes
+      const nodeExit = node.exit()
+        .transition()
+        .duration(750)
+        .attr("transform", d => `translate(${source.y},${source.x})`)
+        .remove();
       
-      // Prevent event propagation
-      event.stopPropagation();
+      // Store the old positions for transition
+      nodes.forEach(d => {
+        d.x0 = d.x;
+        d.y0 = d.y;
+      });
+      
+      // Add click handler for expanding/collapsing and centering
+      nodeEnter.on("click", function(event, d) {
+        event.stopPropagation();
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        } else if (d._children) {
+          d.children = d._children;
+          d._children = null;
+        }
+        update(d);
+        centerNode(d);
+      });
+      
+      node.on("click", function(event, d) {
+        event.stopPropagation();
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        } else if (d._children) {
+          d.children = d._children;
+          d._children = null;
+        }
+        update(d);
+        centerNode(d);
+      });
     }
     
     // Initialize the tree
-    let i = 0;
+    hierarchy.x0 = 0;
+    hierarchy.y0 = 0;
     update(hierarchy);
+    
+    // Add CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .link {
+        fill: none;
+        stroke: #ccc;
+        stroke-width: 2px;
+      }
+      .node circle {
+        fill: white;
+        stroke: steelblue;
+        stroke-width: 2px;
+      }
+      .node circle.married {
+        fill: #ff9999;
+      }
+      .node circle.single {
+        fill: #99ff99;
+      }
+      .node {
+        cursor: pointer;
+      }
+      .node text {
+        font: 14px sans-serif;
+      }
+      .name-label {
+        fill: black;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      const newWidth = Math.max(window.innerWidth, 1500);
+      const newHeight = Math.max(window.innerHeight, 1000);
+      svg.attr("width", newWidth).attr("height", newHeight);
+      update(hierarchy);
+    });
   })
   .catch(error => {
     console.error('Error loading family data:', error);
-    console.error('Error stack:', error.stack);
   });
-
-// Function to convert flat structure to hierarchy
-function buildHierarchy(familyData) {
-  const members = familyData.members;
-  const memberMap = new Map();
-  
-  // First pass: create all nodes
-  members.forEach(member => {
-    memberMap.set(member.id, {
-      name: member.name,
-      spouse: member.spouse,
-      children: []
-    });
-  });
-  
-  // Second pass: build the hierarchy
-  members.forEach(member => {
-    const node = memberMap.get(member.id);
-    if (member.children && member.children.length > 0) {
-      member.children.forEach(childId => {
-        const child = memberMap.get(childId);
-        if (child) {
-          node.children.push(child);
-        }
-      });
-    }
-  });
-  
-  // Find the top-level node (Family Tree)
-  const topNode = members.find(member => 
-    !members.some(m => m.children && m.children.includes(member.id))
-  );
-  
-  // Return the hierarchy starting from the top node
-  return memberMap.get(topNode.id);
-}
