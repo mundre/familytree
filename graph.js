@@ -24,6 +24,44 @@ fetch('name_list.json')
     const g = svg.append("g")
       .attr("transform", `translate(${width/4},${height/2})`);
     
+    // Add help text
+    const helpText = svg.append("text")
+      .attr("class", "help-text")
+      .attr("x", width/4)
+      .attr("y", height/2 - 50)
+      .style("text-anchor", "middle")
+      .style("font-size", "18px")
+      .style("fill", "#666")
+      .text("Click on the circle to expand the tree");
+
+    // Add arrow pointing to root node
+    const arrow = svg.append("path")
+      .attr("class", "help-arrow")
+      .attr("d", `M ${width/4},${height/2 - 40} L ${width/4},${height/2 - 20}`)
+      .style("stroke", "#666")
+      .style("stroke-width", "2")
+      .style("fill", "none")
+      .style("marker-end", "url(#arrowhead)");
+
+    // Add arrowhead marker definition
+    svg.append("defs").append("marker")
+      .attr("id", "arrowhead")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 5)
+      .attr("refY", 0)
+      .attr("markerWidth", 6)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,-5L10,0L0,5")
+      .style("fill", "#666");
+
+    // Function to hide help elements
+    function hideHelp() {
+      helpText.style("opacity", 0).style("pointer-events", "none");
+      arrow.style("opacity", 0).style("pointer-events", "none");
+    }
+    
     // Add zoom behavior to the SVG, transforming the group
     const zoom = d3.zoom()
       .scaleExtent([0.1, 3])
@@ -35,25 +73,35 @@ fetch('name_list.json')
     
     // Create the tree layout with increased spacing
     const treeLayout = d3.tree()
-      .nodeSize([80, 200]); // Adjust node spacing
+      .nodeSize([100, 220]); // Increased spacing to accommodate larger nodes
     
     // Create the hierarchy and compute the tree layout
     const hierarchy = d3.hierarchy(root);
     
-    // Collapse all nodes except Jayalal and his immediate children
-    hierarchy.descendants().forEach(d => {
-      // If it's not in the path to Jayalal and not Jayalal himself, collapse it
-      const isJayalal = d.data.name === "Jayalal";
-      const isPathToJayalal = d.ancestors().some(node => node.data.name === "Jayalal");
-      const isJayalalChild = d.parent && d.parent.data.name === "Jayalal";
+    // Initialize the root node's children
+    if (hierarchy.children) {
+      hierarchy._children = hierarchy.children;
+      hierarchy.children = null;
+    }
 
+    // Function to toggle children
+    function toggleChildren(d) {
       if (d.children) {
-        if (!isJayalal && !isPathToJayalal && !isJayalalChild) {
-          d._children = d.children;
-          d.children = null;
-        }
+        d._children = d.children;
+        d.children = null;
+      } else if (d._children) {
+        d.children = d._children;
+        d._children = null;
+        // Collapse any expanded children
+        d.children.forEach(child => {
+          if (child.children) {
+            child._children = child.children;
+            child.children = null;
+          }
+        });
       }
-    });
+      return d;
+    }
 
     // Function to find a node by name
     function findNode(node, name) {
@@ -96,13 +144,19 @@ fetch('name_list.json')
         }
       });
       
-      // Then expand only the path to our target node
-      pathToRoot.reverse().forEach(n => {
-        if (n._children) {
+      // Then expand only the path to our target node and its immediate parent
+      pathToRoot.reverse().forEach((n, i) => {
+        if (n._children && (i === pathToRoot.length - 1 || n === node.parent)) {
           n.children = n._children;
           n._children = null;
         }
       });
+
+      // If the target node has children, show them
+      if (node._children) {
+        node.children = node._children;
+        node._children = null;
+      }
     }
 
     // Function to remove highlight from all nodes
@@ -134,6 +188,11 @@ fetch('name_list.json')
       const nodes = treeData.descendants();
       const links = treeData.links();
       
+      // Normalize for fixed-depth
+      nodes.forEach(d => {
+        d.y = d.depth * 220; // Horizontal spacing
+      });
+      
       // Update the links
       const link = g.selectAll(".link")
         .data(links, d => d.target.data.id);
@@ -142,8 +201,8 @@ fetch('name_list.json')
       const linkEnter = link.enter().append("path")
         .attr("class", "link")
         .attr("d", d3.linkHorizontal()
-          .x(d => d.y)
-          .y(d => d.x));
+          .x(d => source.y0)
+          .y(d => source.x0));
       
       // Update existing links
       link.merge(linkEnter)
@@ -154,7 +213,13 @@ fetch('name_list.json')
           .y(d => d.x));
       
       // Remove any exiting links
-      link.exit().remove();
+      link.exit()
+        .transition()
+        .duration(750)
+        .attr("d", d3.linkHorizontal()
+          .x(d => source.y)
+          .y(d => source.x))
+        .remove();
       
       // Update the nodes
       const node = g.selectAll(".node")
@@ -167,42 +232,42 @@ fetch('name_list.json')
       
       // Add circles for the nodes
       nodeEnter.append("circle")
-        .attr("r", 10)
+        .attr("r", d => d === hierarchy ? 50 : 15)
         .attr("class", d => d.data.spouse ? "married" : "single");
       
       // Add + symbol for nodes with hidden children
       nodeEnter.append("text")
         .attr("class", "expand-symbol")
-        .attr("dy", ".3em")
+        .attr("dy", d => d === hierarchy ? ".45em" : ".35em")
         .style("text-anchor", "middle")
-        .style("font-size", "16px")
+        .style("font-size", d => d === hierarchy ? "36px" : "20px")
         .style("fill", "#666")
         .text(d => d._children ? "+" : "");
       
       // Add name label below the node
       nodeEnter.append("text")
         .attr("class", "name-label")
-        .attr("dy", "2em")
+        .attr("dy", d => d === hierarchy ? "3.5em" : "2.5em")
         .style("text-anchor", "middle")
         .text(d => d.data.name);
       
-      // Transition nodes to their new positions
-      const nodeUpdate = node.merge(nodeEnter)
-        .transition()
+      // UPDATE
+      const nodeUpdate = node.merge(nodeEnter);
+      
+      // Transition to the proper position for the nodes
+      nodeUpdate.transition()
         .duration(750)
         .attr("transform", d => `translate(${d.y},${d.x})`);
       
-      // Update node attributes
+      // Update the node attributes
       nodeUpdate.select("circle")
-        .attr("r", 10)
+        .attr("r", d => d === hierarchy ? 50 : 15)
         .attr("class", d => d.data.spouse ? "married" : "single");
       
-      // Update + symbol
       nodeUpdate.select(".expand-symbol")
-        .text(d => d._children ? "+" : "");
-
-      nodeUpdate.select(".name-label")
-        .text(d => d.data.name);
+        .text(d => d._children ? "+" : "")
+        .attr("dy", d => d === hierarchy ? ".45em" : ".35em")
+        .style("font-size", d => d === hierarchy ? "36px" : "20px");
       
       // Remove any exiting nodes
       const nodeExit = node.exit()
@@ -217,36 +282,26 @@ fetch('name_list.json')
         d.y0 = d.y;
       });
       
-      // Add click handler for expanding/collapsing and centering
+      // Add click handlers
       nodeEnter.on("click", function(event, d) {
         event.stopPropagation();
-        if (d.children) {
-          d._children = d.children;
-          d.children = null;
-        } else if (d._children) {
-          d.children = d._children;
-          d._children = null;
-        }
+        hideHelp();
+        d = toggleChildren(d);
         update(d);
         centerNode(d);
       });
       
-      node.on("click", function(event, d) {
+      nodeUpdate.on("click", function(event, d) {
         event.stopPropagation();
-        if (d.children) {
-          d._children = d.children;
-          d.children = null;
-        } else if (d._children) {
-          d.children = d._children;
-          d._children = null;
-        }
+        hideHelp();
+        d = toggleChildren(d);
         update(d);
         centerNode(d);
       });
     }
     
-    // Initialize the tree
-    hierarchy.x0 = 0;
+    // Initialize display
+    hierarchy.x0 = height / 2;
     hierarchy.y0 = 0;
     update(hierarchy);
 
