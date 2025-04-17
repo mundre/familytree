@@ -45,7 +45,7 @@ fetch('family_data.json')
       const nodes = treeData.descendants();
       const links = treeData.links();
       
-      // Update the links
+      // Update the links with faster transitions
       const link = svg.selectAll(".link")
         .data(links, d => d.target.id);
       
@@ -55,19 +55,19 @@ fetch('family_data.json')
         .attr("class", "link")
         .attr("d", d3.linkVertical()
           .x(d => d.x)
-          .y(d => d.y + 50)); // Add vertical offset
+          .y(d => d.y + 50));
       
-      // Update existing links
+      // Update existing links with shorter duration
       link.transition()
-        .duration(500)
+        .duration(200) // Reduced from 500 to 200
         .attr("d", d3.linkVertical()
           .x(d => d.x)
-          .y(d => d.y + 50)); // Add vertical offset
+          .y(d => d.y + 50));
       
       // Exit any old links
       link.exit().remove();
       
-      // Update the nodes
+      // Update the nodes with faster transitions
       const node = svg.selectAll(".node")
         .data(nodes, d => d.id || (d.id = ++i));
       
@@ -75,12 +75,13 @@ fetch('family_data.json')
       const nodeEnter = node.enter()
         .append("g")
         .attr("class", "node")
-        .attr("transform", d => `translate(${d.x},${d.y + 50})`); // Add vertical offset
+        .attr("transform", d => `translate(${d.x},${d.y + 50})`);
       
       // Add circles for nodes
       nodeEnter.append("circle")
         .attr("r", 15)
-        .attr("class", d => d.data.spouse ? "married" : "single");
+        .attr("class", d => d.data.spouse ? "married" : "single")
+        .on("click", click);
       
       // Add expand/collapse indicators inside the circle
       nodeEnter.append("text")
@@ -94,8 +95,7 @@ fetch('family_data.json')
           if (d.children) return "-";
           if (d._children) return "+";
           return "";
-        })
-        .on("click", click);
+        });
       
       // Add text labels
       nodeEnter.append("text")
@@ -105,12 +105,12 @@ fetch('family_data.json')
         .style("text-anchor", d => (d.children || d._children) ? "end" : "start")
         .text(d => d.data.name);
       
-      // Update existing nodes
+      // Update existing nodes with shorter duration
       node.transition()
-        .duration(500)
-        .attr("transform", d => `translate(${d.x},${d.y + 50})`); // Add vertical offset
+        .duration(200) // Reduced from 500 to 200
+        .attr("transform", d => `translate(${d.x},${d.y + 50})`);
       
-      // Update expand/collapse indicators
+      // Update expand/collapse indicators immediately
       node.select(".expand-collapse")
         .text(d => {
           if (d.children) return "-";
@@ -122,16 +122,23 @@ fetch('family_data.json')
       node.exit().remove();
     }
     
-    // Toggle children on click
+    // Toggle children on click with immediate visual feedback
     function click(event, d) {
       if (d.children) {
         d._children = d.children;
         d.children = null;
-      } else {
+      } else if (d._children) {
         d.children = d._children;
         d._children = null;
+      } else {
+        return;
       }
+      
+      // Update the tree immediately
       update(d);
+      
+      // Prevent event propagation
+      event.stopPropagation();
     }
     
     // Initialize the tree
