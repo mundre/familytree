@@ -15,6 +15,57 @@ def generate_html_tree(root_node):
                 margin: 0;
                 padding: 0;
                 overflow: hidden;
+                font-family: Arial, sans-serif;
+            }
+            #search-container {
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 1000;
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            #search-input {
+                padding: 8px;
+                width: 200px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            #search-input:focus {
+                outline: none;
+                border-color: steelblue;
+            }
+            #search-results {
+                display: none;
+                font-size: 14px;
+                color: #666;
+            }
+            #search-navigation {
+                display: none;
+                gap: 10px;
+            }
+            .nav-button {
+                padding: 4px 8px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                background: white;
+                cursor: pointer;
+                font-size: 12px;
+            }
+            .nav-button:hover {
+                background: #f0f0f0;
+            }
+            .nav-button:disabled {
+                cursor: not-allowed;
+                opacity: 0.5;
             }
             #tree {
                 width: 100vw;
@@ -51,9 +102,22 @@ def generate_html_tree(root_node):
                 fill: #666;
                 user-select: none;
             }
+            .found-node circle {
+                stroke: #ff6600;
+                stroke-width: 3px;
+            }
         </style>
     </head>
     <body>
+        <div id="search-container">
+            <input type="text" id="search-input" placeholder="Search by name...">
+            <div id="search-results"></div>
+            <div id="search-navigation">
+                <button id="prev-result" class="nav-button" disabled>← Previous</button>
+                <span id="result-count"></span>
+                <button id="next-result" class="nav-button" disabled>Next →</button>
+            </div>
+        </div>
         <div id="tree"></div>
         <script src="graph.js"></script>
         <script>

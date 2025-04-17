@@ -47,6 +47,61 @@ fetch('name_list.json')
         d.children = null;
       }
     });
+
+    // Function to find a node by name
+    function findNode(node, name) {
+      if (node.data.name.toLowerCase().includes(name.toLowerCase())) {
+        return node;
+      }
+      if (node.children) {
+        for (let child of node.children) {
+          const found = findNode(child, name);
+          if (found) return found;
+        }
+      }
+      if (node._children) {
+        for (let child of node._children) {
+          const found = findNode(child, name);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    // Function to expand path to a node
+    function expandPathTo(node) {
+      if (!node) return;
+      
+      let current = node;
+      const pathToRoot = [];
+      
+      // Collect path from node to root
+      while (current.parent) {
+        pathToRoot.push(current.parent);
+        current = current.parent;
+      }
+      
+      // First collapse all nodes
+      hierarchy.descendants().forEach(d => {
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        }
+      });
+      
+      // Then expand only the path to our target node
+      pathToRoot.reverse().forEach(n => {
+        if (n._children) {
+          n.children = n._children;
+          n._children = null;
+        }
+      });
+    }
+
+    // Function to remove highlight from all nodes
+    function clearHighlight() {
+      g.selectAll(".node").classed("found-node", false);
+    }
     
     // Function to center node
     function centerNode(source) {
@@ -187,37 +242,110 @@ fetch('name_list.json')
     hierarchy.x0 = 0;
     hierarchy.y0 = 0;
     update(hierarchy);
+
+    // Initialize search state
+    let foundResults = [];
+    let currentResultIndex = -1;
+
+    // Function to find all matching nodes
+    function findNodes(node, name) {
+      const results = [];
+      
+      function search(n) {
+        if (n.data.name.toLowerCase().includes(name.toLowerCase())) {
+          results.push(n);
+        }
+        if (n.children) {
+          n.children.forEach(search);
+        }
+        if (n._children) {
+          n._children.forEach(search);
+        }
+      }
+      
+      search(node);
+      return results;
+    }
+
+    // Function to navigate to a specific search result
+    function navigateToResult(index) {
+      if (index < 0 || index >= foundResults.length) return;
+      
+      // Clear previous highlight
+      clearHighlight();
+      
+      const foundNode = foundResults[index];
+      currentResultIndex = index;
+      
+      // Update navigation buttons
+      document.getElementById('prev-result').disabled = index === 0;
+      document.getElementById('next-result').disabled = index === foundResults.length - 1;
+      
+      // Update result count
+      document.getElementById('result-count').textContent = 
+        `Result ${index + 1} of ${foundResults.length}`;
+      
+      // Show navigation if there are multiple results
+      const navDiv = document.getElementById('search-navigation');
+      navDiv.style.display = foundResults.length > 1 ? 'flex' : 'none';
+      
+      // Expand path and highlight node
+      expandPathTo(foundNode);
+      update(hierarchy);
+      
+      // Highlight the found node
+      g.selectAll(".node")
+        .filter(d => d === foundNode)
+        .classed("found-node", true);
+      
+      // Center on the found node
+      centerNode(foundNode);
+    }
+
+    // Add search functionality
+    const searchInput = document.getElementById('search-input');
+    const resultsDisplay = document.getElementById('search-results');
     
-    // Add CSS styles
-    const style = document.createElement('style');
-    style.textContent = `
-      .link {
-        fill: none;
-        stroke: #ccc;
-        stroke-width: 2px;
+    searchInput.addEventListener('input', function(e) {
+      const searchTerm = e.target.value.trim();
+      
+      // Clear previous results
+      clearHighlight();
+      foundResults = [];
+      currentResultIndex = -1;
+      
+      // Hide navigation
+      document.getElementById('search-navigation').style.display = 'none';
+      resultsDisplay.style.display = 'none';
+      
+      if (searchTerm.length < 2) return; // Only search for 2 or more characters
+      
+      // Find all matching nodes
+      foundResults = findNodes(hierarchy, searchTerm);
+      
+      if (foundResults.length > 0) {
+        // Show result count
+        resultsDisplay.style.display = 'block';
+        resultsDisplay.textContent = 
+          `Found ${foundResults.length} match${foundResults.length > 1 ? 'es' : ''}`;
+        
+        // Navigate to first result
+        navigateToResult(0);
       }
-      .node circle {
-        fill: white;
-        stroke: steelblue;
-        stroke-width: 2px;
+    });
+
+    // Add navigation button handlers
+    document.getElementById('prev-result').addEventListener('click', () => {
+      if (currentResultIndex > 0) {
+        navigateToResult(currentResultIndex - 1);
       }
-      .node circle.married {
-        fill: #ff9999;
+    });
+
+    document.getElementById('next-result').addEventListener('click', () => {
+      if (currentResultIndex < foundResults.length - 1) {
+        navigateToResult(currentResultIndex + 1);
       }
-      .node circle.single {
-        fill: #99ff99;
-      }
-      .node {
-        cursor: pointer;
-      }
-      .node text {
-        font: 14px sans-serif;
-      }
-      .name-label {
-        fill: black;
-      }
-    `;
-    document.head.appendChild(style);
+    });
     
     // Handle window resize
     window.addEventListener('resize', () => {
