@@ -144,9 +144,9 @@ fetch('name_list.json')
         }
       });
       
-      // Then expand only the path to our target node and its immediate parent
-      pathToRoot.reverse().forEach((n, i) => {
-        if (n._children && (i === pathToRoot.length - 1 || n === node.parent)) {
+      // Then expand only the path to our target node
+      pathToRoot.reverse().forEach(n => {
+        if (n._children) {
           n.children = n._children;
           n._children = null;
         }
@@ -156,6 +156,15 @@ fetch('name_list.json')
       if (node._children) {
         node.children = node._children;
         node._children = null;
+        // Ensure children start collapsed
+        if (node.children) {
+          node.children.forEach(child => {
+            if (child.children) {
+              child._children = child.children;
+              child.children = null;
+            }
+          });
+        }
       }
     }
 
@@ -376,11 +385,21 @@ fetch('name_list.json')
       foundResults = [];
       currentResultIndex = -1;
       
-      // Hide navigation
+      // Hide navigation and results
       document.getElementById('search-navigation').style.display = 'none';
       resultsDisplay.style.display = 'none';
       
-      if (searchTerm.length < 2) return; // Only search for 2 or more characters
+      if (searchTerm.length < 2) {
+        // If search is cleared, ensure tree is in initial state
+        hierarchy.descendants().forEach(d => {
+          if (d.children) {
+            d._children = d.children;
+            d.children = null;
+          }
+        });
+        update(hierarchy);
+        return;
+      }
       
       // Find all matching nodes
       foundResults = findNodes(hierarchy, searchTerm);
@@ -393,6 +412,10 @@ fetch('name_list.json')
         
         // Navigate to first result
         navigateToResult(0);
+      } else {
+        // Show no results found
+        resultsDisplay.style.display = 'block';
+        resultsDisplay.textContent = 'No matches found';
       }
     });
 
