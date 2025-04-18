@@ -58,8 +58,8 @@ fetch('name_list.json')
 
     // Function to hide help elements
     function hideHelp() {
-      helpText.style("opacity", 0).style("pointer-events", "none");
-      arrow.style("opacity", 0).style("pointer-events", "none");
+      helpText.remove(); // Permanently remove instead of just hiding
+      arrow.remove();
     }
     
     // Add zoom behavior to the SVG, transforming the group
@@ -379,6 +379,11 @@ fetch('name_list.json')
     
     searchInput.addEventListener('input', function(e) {
       const searchTerm = e.target.value.trim();
+      
+      // Hide help text on first search input
+      if (helpText) {
+        hideHelp();
+      }
       
       // Clear previous results
       clearHighlight();
